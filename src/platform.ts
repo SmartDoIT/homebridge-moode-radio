@@ -150,6 +150,7 @@ export class MoodeRadioPlatform implements DynamicPlatformPlugin {
         added++;
       }
       service.setCharacteristic(hap.Characteristic.Name, label);
+      service.addOptionalCharacteristic(hap.Characteristic.ConfiguredName);
       service.setCharacteristic(hap.Characteristic.ConfiguredName, label);
       this.bind(service, name);
     }
