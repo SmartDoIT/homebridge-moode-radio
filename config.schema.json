@@ -1,0 +1,69 @@
+{
+  "pluginAlias": "MoodeRadio",
+  "pluginType": "platform",
+  "singular": true,
+  "headerDisplay": "Each favourite station becomes a switch in the Home app. Turning one on plays it on moOde and turns the others off.",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "title": "Name",
+        "type": "string",
+        "default": "moOde Radio",
+        "required": true
+      },
+      "host": {
+        "title": "moOde host",
+        "type": "string",
+        "default": "moode.local",
+        "description": "Host name or IP address of the moOde player.",
+        "required": true
+      },
+      "mpdPort": {
+        "title": "MPD port",
+        "type": "integer",
+        "default": 6600,
+        "minimum": 1,
+        "maximum": 65535
+      },
+      "pollSeconds": {
+        "title": "Status check every (seconds)",
+        "type": "integer",
+        "default": 20,
+        "minimum": 5,
+        "description": "How often the switches are synced with what moOde is really playing."
+      },
+      "offSwitch": {
+        "title": "Add a 'stop' switch",
+        "type": "boolean",
+        "default": true
+      },
+      "offSwitchName": {
+        "title": "Stop switch name",
+        "type": "string",
+        "default": "Radio Off"
+      },
+      "stations": {
+        "title": "Favourite stations",
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "title": "Station name in moOde",
+              "type": "string",
+              "required": true,
+              "description": "Exactly as shown in moOde's radio list, e.g. Radio Swiss Jazz."
+            },
+            "label": {
+              "title": "Name in Home / for Siri",
+              "type": "string",
+              "description": "Optional. Leave empty to use the moOde name. Keep it short and easy to say."
+            }
+          }
+        }
+      }
+    },
+    "required": ["name", "host"]
+  }
+}
