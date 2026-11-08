@@ -2,14 +2,14 @@
   "pluginAlias": "MoodeRadio",
   "pluginType": "platform",
   "singular": true,
-  "headerDisplay": "One accessory, \"Radio moOde\", with a switch for every station you mark as a favourite in moOde's radio list. Turning a switch on plays the station on moOde and turns the others off; turning it off stops the music.",
+  "headerDisplay": "One accessory, \"moOde Radio\", with a switch for every station you mark as a favourite in moOde's radio list. Turning a switch on plays the station on moOde and turns the others off; turning it off stops the music.",
   "schema": {
     "type": "object",
     "properties": {
       "name": {
         "title": "Accessory name",
         "type": "string",
-        "default": "Radio moOde",
+        "default": "moOde Radio",
         "required": true,
         "description": "The name of the single accessory in the Home app."
       },
