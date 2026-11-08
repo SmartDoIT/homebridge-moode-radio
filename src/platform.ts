@@ -11,7 +11,6 @@ import { homeName } from './names';
 
 const PLUGIN_NAME = 'homebridge-moode-radio';
 const PLATFORM_NAME = 'MoodeRadio';
-const REFRESH_ID = '__radio_refresh__';
 
 interface StationConfig {
   name?: string;
@@ -21,8 +20,7 @@ interface StationConfig {
 interface Entry {
   accessory: PlatformAccessory;
   service: Service;
-  /** moOde station name; undefined for the refresh switch. */
-  moodeName?: string;
+  moodeName: string;
   label: string;
 }
 
@@ -51,10 +49,6 @@ export class MoodeRadioPlatform implements DynamicPlatformPlugin {
   }
 
   private async start(): Promise<void> {
-    if (this.config.refreshSwitch !== false) {
-      this.add(REFRESH_ID, homeName(String(this.config.refreshSwitchName ?? 'Refresh Radio')));
-    }
-
     await this.reconcile();
     await this.sync();
 
@@ -64,8 +58,8 @@ export class MoodeRadioPlatform implements DynamicPlatformPlugin {
 
   /**
    * Rescans moOde's radio list and makes the station switches match it: one per favourite
-   * (plus any extra stations from the config). Runs at startup and when the refresh switch
-   * is pressed. If moOde can't be reached, nothing is removed.
+   * (plus any extra stations from the config). Runs once, when Homebridge starts. If moOde
+   * can't be reached, the switches Homebridge already knows are kept.
    */
   private async reconcile(): Promise<void> {
     let stations: Station[];
@@ -108,7 +102,7 @@ export class MoodeRadioPlatform implements DynamicPlatformPlugin {
 
     let removed = 0;
     for (const [uuid, e] of [...this.entries]) {
-      if (e.moodeName && !wanted.has(e.moodeName)) {
+      if (!wanted.has(e.moodeName)) {
         this.log.info(`Removing "${e.label}" (no longer a favourite in moOde)`);
         this.api.unregisterPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [e.accessory]);
         this.entries.delete(uuid);
@@ -142,7 +136,7 @@ export class MoodeRadioPlatform implements DynamicPlatformPlugin {
   }
 
   /** Creates or restores one switch and returns its UUID. */
-  private add(id: string, label: string, moodeName?: string): string {
+  private add(id: string, label: string, moodeName: string): string {
     const { hap } = this.api;
     const uuid = this.uuidFor(id);
     const existing = this.entries.get(uuid);
@@ -156,11 +150,10 @@ export class MoodeRadioPlatform implements DynamicPlatformPlugin {
       accessory = new this.api.platformAccessory(label, uuid);
       this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
     }
-    const model = moodeName ? 'moOde radio station' : 'moOde refresh';
-    accessory
+        accessory
       .getService(hap.Service.AccessoryInformation)!
       .setCharacteristic(hap.Characteristic.Manufacturer, 'SmartDoIT')
-      .setCharacteristic(hap.Characteristic.Model, model)
+      .setCharacteristic(hap.Characteristic.Model, 'moOde radio station')
       .setCharacteristic(hap.Characteristic.SerialNumber, id);
 
     const service =
@@ -181,20 +174,11 @@ export class MoodeRadioPlatform implements DynamicPlatformPlugin {
     if (!entry) {
       return;
     }
-    const { Characteristic, HapStatusError, HAPStatus } = this.api.hap;
+    const { HapStatusError, HAPStatus } = this.api.hap;
     try {
-      if (!entry.moodeName) {
-        // Refresh switch: acts like a push button, falls back to off.
-        if (on) {
-          this.log.info('Refreshing the station list');
-          await this.reconcile();
-          setTimeout(() => entry.service.updateCharacteristic(Characteristic.On, false), 1000);
-        }
-        return;
-      }
       if (on) {
         this.log.info(`Playing "${entry.moodeName}"`);
-        await this.client.play(entry.moodeName!);
+        await this.client.play(entry.moodeName);
         this.setOnly(uuid);
       } else {
         // Turning the playing station off stops the music, unless moOde is

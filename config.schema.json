@@ -30,18 +30,7 @@
         "title": "Switches for moOde favourites",
         "type": "boolean",
         "default": true,
-        "description": "Create a switch for every station marked as a favourite in moOde. Add or remove favourites in moOde's radio list; the plugin picks the change up."
-      },
-      "refreshSwitch": {
-        "title": "Add a 'refresh' switch",
-        "type": "boolean",
-        "default": true,
-        "description": "A switch in Home that rescans moOde's favourites when you turn it on (it turns itself off again). Favourites are also scanned when Homebridge starts."
-      },
-      "refreshSwitchName": {
-        "title": "Refresh switch name",
-        "type": "string",
-        "default": "Refresh Radio"
+        "description": "Create a switch for every station marked as a favourite in moOde. The list is read each time Homebridge starts; restart Homebridge (or the plugin's child bridge) after changing favourites in moOde."
       },
       "pollSeconds": {
         "title": "Status check every (seconds)",
