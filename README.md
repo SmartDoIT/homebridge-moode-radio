@@ -1,10 +1,10 @@
 # homebridge-moode-radio
 
-Homebridge plugin that turns your favourite radio stations on a [moOde audio player](https://moodeaudio.org) into HomeKit switches, so Siri (for example on a HomePod) can play them:
+Homebridge plugin that turns your favourite radio stations on a [moOde audio player](https://moodeaudio.org) into HomeKit switches, so Siri (for example on a HomePod) can play them. It adds **one accessory**, "moOde Radio", and the stations are switches inside it, so your Home app isn't filled with separate entries:
 
 > "Hey Siri, turn on Swiss Jazz"
 
-- **Follows moOde's favourites.** Every station marked as a favourite in moOde's radio list becomes a switch. Add or remove a favourite in moOde and the plugin picks it up, so there is no list to maintain in Homebridge.
+- **Follows moOde's favourites.** Every station marked as a favourite in moOde's radio list becomes a switch inside the one accessory. Add or remove a favourite in moOde and the plugin picks it up, so there is no list to maintain in Homebridge.
 - Only one station is on at a time: turning one on turns the others off.
 - Turning the playing station's switch off stops the music. There is no separate stop switch.
 - The favourites list is read from moOde each time Homebridge starts (restart Homebridge, or the plugin's child bridge, after changing favourites in moOde). There is no timer and no refresh switch.
@@ -40,7 +40,7 @@ The minimum:
 
 `stations` entries look like `{ "name": "Radio Swiss Jazz", "label": "Swiss Jazz" }`: `name` is exactly as in moOde's radio list, `label` is the name in Home.
 
-Names in Home are cleaned for HomeKit (`FluxFM - 80s` becomes `FluxFM 80s`). Playing a station empties moOde's play queue and puts only that station in it. HomeKit allows about 150 accessories per bridge; with more favourites than that, run the plugin as a child bridge.
+Names in Home are cleaned for HomeKit (`FluxFM - 80s` becomes `FluxFM 80s`). In the Home app the switches sit inside the one "moOde Radio" tile; press and hold it, or open its settings and turn on "Show as Separate Tiles", to see them as individual tiles. An accessory can hold at most 90 stations. Playing a station empties moOde's play queue and puts only that station in it. HomeKit allows about 150 accessories per bridge; with more favourites than that, run the plugin as a child bridge.
 
 ## Develop
 

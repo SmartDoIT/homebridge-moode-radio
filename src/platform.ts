@@ -11,25 +11,29 @@ import { homeName } from './names';
 
 const PLUGIN_NAME = 'homebridge-moode-radio';
 const PLATFORM_NAME = 'MoodeRadio';
+const ACCESSORY_ID = 'moode-radio-accessory';
+const SUBTYPE_PREFIX = 'station:';
+/** HomeKit allows 100 services per accessory; two are taken by the accessory itself. */
+const MAX_STATIONS = 90;
 
 interface StationConfig {
   name?: string;
   label?: string;
 }
 
-interface Entry {
-  accessory: PlatformAccessory;
-  service: Service;
-  moodeName: string;
-  label: string;
-}
-
+/**
+ * One HomeKit accessory ("moOde Radio") that holds one Switch service per radio station.
+ * Turning a switch on plays that station on moOde; turning it off stops the music.
+ */
 export class MoodeRadioPlatform implements DynamicPlatformPlugin {
   private readonly client: MoodeClient;
-  private readonly cached = new Map<string, PlatformAccessory>();
-  private readonly entries = new Map<string, Entry>();
+  private accessory?: PlatformAccessory;
+  /** Accessories from older versions (one accessory per station), removed at startup. */
+  private readonly legacy: PlatformAccessory[] = [];
+  /** moOde station name -> its switch. */
+  private readonly switches = new Map<string, Service>();
   private known: Station[] = [];
-  private timers: NodeJS.Timeout[] = [];
+  private timer?: NodeJS.Timeout;
 
   constructor(
     private readonly log: Logging,
@@ -41,35 +45,62 @@ export class MoodeRadioPlatform implements DynamicPlatformPlugin {
       Number(config.mpdPort ?? 6600),
     );
     api.on('didFinishLaunching', () => void this.start());
-    api.on('shutdown', () => this.timers.forEach((t) => clearInterval(t)));
+    api.on('shutdown', () => this.timer && clearInterval(this.timer));
   }
 
   configureAccessory(accessory: PlatformAccessory): void {
-    this.cached.set(accessory.UUID, accessory);
+    if (accessory.UUID === this.api.hap.uuid.generate(`${PLUGIN_NAME}:${ACCESSORY_ID}`)) {
+      this.accessory = accessory;
+    } else {
+      this.legacy.push(accessory);
+    }
   }
 
   private async start(): Promise<void> {
+    const { hap } = this.api;
+
+    if (this.legacy.length > 0) {
+      this.log.info(`Removing ${this.legacy.length} accessories from an older version`);
+      this.api.unregisterPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, this.legacy);
+    }
+
+    const label = homeName(String(this.config.name ?? 'moOde Radio'));
+    if (!this.accessory) {
+      this.accessory = new this.api.platformAccessory(
+        label,
+        hap.uuid.generate(`${PLUGIN_NAME}:${ACCESSORY_ID}`),
+      );
+      this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [this.accessory]);
+    }
+    this.accessory.displayName = label;
+    this.accessory
+      .getService(hap.Service.AccessoryInformation)!
+      .setCharacteristic(hap.Characteristic.Manufacturer, 'SmartDoIT')
+      .setCharacteristic(hap.Characteristic.Model, 'moOde radio')
+      .setCharacteristic(hap.Characteristic.SerialNumber, ACCESSORY_ID);
+
     await this.reconcile();
     await this.sync();
-
     const pollSeconds = Math.max(5, Number(this.config.pollSeconds ?? 20));
-    this.timers.push(setInterval(() => void this.sync(), pollSeconds * 1000));
+    this.timer = setInterval(() => void this.sync(), pollSeconds * 1000);
   }
 
   /**
-   * Rescans moOde's radio list and makes the station switches match it: one per favourite
-   * (plus any extra stations from the config). Runs once, when Homebridge starts. If moOde
-   * can't be reached, the switches Homebridge already knows are kept.
+   * Reads moOde's radio list and makes the switches match it: one per favourite (plus any
+   * extra stations from the config). Runs once, when Homebridge starts. If moOde can't be
+   * reached, the switches Homebridge already knows are kept.
    */
   private async reconcile(): Promise<void> {
+    const accessory = this.accessory!;
     let stations: Station[];
     try {
       stations = await this.client.stations();
     } catch (err) {
       this.log.warn(`Could not read moOde's station list, keeping the current switches: ${(err as Error).message}`);
-      // First start with moOde down: keep restoring the switches HomeKit already knows.
-      if (this.known.length === 0) {
-        this.restoreCachedStations();
+      for (const service of accessory.services) {
+        if (service.subtype?.startsWith(SUBTYPE_PREFIX)) {
+          this.bind(service, service.subtype.slice(SUBTYPE_PREFIX.length));
+        }
       }
       return;
     }
@@ -91,104 +122,66 @@ export class MoodeRadioPlatform implements DynamicPlatformPlugin {
       }
       wanted.set(name, homeName(extra.label?.trim() || name));
     }
+    if (wanted.size > MAX_STATIONS) {
+      this.log.warn(`${wanted.size} stations is more than HomeKit allows in one accessory; using the first ${MAX_STATIONS}`);
+      for (const name of [...wanted.keys()].slice(MAX_STATIONS)) {
+        wanted.delete(name);
+      }
+    }
 
+    const { hap } = this.api;
     let added = 0;
+    let removed = 0;
+    for (const service of [...accessory.services]) {
+      if (service.subtype?.startsWith(SUBTYPE_PREFIX)) {
+        const name = service.subtype.slice(SUBTYPE_PREFIX.length);
+        if (!wanted.has(name)) {
+          this.log.info(`Removing "${name}" (no longer a favourite in moOde)`);
+          accessory.removeService(service);
+          removed++;
+        }
+      }
+    }
     for (const [name, label] of wanted) {
-      if (!this.entries.has(this.uuidFor(`station:${name}`))) {
+      const subtype = SUBTYPE_PREFIX + name;
+      let service = accessory.getServiceById(hap.Service.Switch, subtype);
+      if (!service) {
+        service = accessory.addService(hap.Service.Switch, label, subtype);
         added++;
       }
-      this.add(`station:${name}`, label, name);
+      service.setCharacteristic(hap.Characteristic.Name, label);
+      service.setCharacteristic(hap.Characteristic.ConfiguredName, label);
+      this.bind(service, name);
     }
-
-    let removed = 0;
-    for (const [uuid, e] of [...this.entries]) {
-      if (!wanted.has(e.moodeName)) {
-        this.log.info(`Removing "${e.label}" (no longer a favourite in moOde)`);
-        this.api.unregisterPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [e.accessory]);
-        this.entries.delete(uuid);
-        this.cached.delete(uuid);
-        removed++;
-      }
-    }
-    // Cached switches that were never restored this run (e.g. config changed while Homebridge was off).
-    for (const [uuid, accessory] of [...this.cached]) {
-      if (!this.entries.has(uuid)) {
-        this.api.unregisterPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
-        this.cached.delete(uuid);
-      }
-    }
-
+    this.api.updatePlatformAccessories([accessory]);
     this.log.info(`moOde radio: ${wanted.size} station switches (${added} added, ${removed} removed)`);
   }
 
-  private restoreCachedStations(): void {
-    for (const accessory of this.cached.values()) {
-      const id = accessory.getService(this.api.hap.Service.AccessoryInformation)
-        ?.getCharacteristic(this.api.hap.Characteristic.SerialNumber).value;
-      if (typeof id === 'string' && id.startsWith('station:')) {
-        this.add(id, accessory.displayName, id.slice('station:'.length));
-      }
-    }
-  }
-
-  private uuidFor(id: string): string {
-    return this.api.hap.uuid.generate(`${PLUGIN_NAME}:${id}`);
-  }
-
-  /** Creates or restores one switch and returns its UUID. */
-  private add(id: string, label: string, moodeName: string): string {
-    const { hap } = this.api;
-    const uuid = this.uuidFor(id);
-    const existing = this.entries.get(uuid);
-    if (existing) {
-      return uuid;
-    }
-    let accessory = this.cached.get(uuid);
-    if (accessory) {
-      accessory.displayName = label;
-    } else {
-      accessory = new this.api.platformAccessory(label, uuid);
-      this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
-    }
-        accessory
-      .getService(hap.Service.AccessoryInformation)!
-      .setCharacteristic(hap.Characteristic.Manufacturer, 'SmartDoIT')
-      .setCharacteristic(hap.Characteristic.Model, 'moOde radio station')
-      .setCharacteristic(hap.Characteristic.SerialNumber, id);
-
-    const service =
-      accessory.getService(hap.Service.Switch) ?? accessory.addService(hap.Service.Switch, label);
-    service.setCharacteristic(hap.Characteristic.Name, label);
+  private bind(service: Service, moodeName: string): void {
+    const { Characteristic } = this.api.hap;
+    this.switches.set(moodeName, service);
     service
-      .getCharacteristic(hap.Characteristic.On)
-      .onGet(() => service.getCharacteristic(hap.Characteristic.On).value ?? false)
-      .onSet((value) => this.handleSet(uuid, Boolean(value)));
-
-    this.entries.set(uuid, { accessory, service, moodeName, label });
-    this.cached.set(uuid, accessory);
-    return uuid;
+      .getCharacteristic(Characteristic.On)
+      .onGet(() => service.getCharacteristic(Characteristic.On).value ?? false)
+      .onSet((value) => this.handleSet(moodeName, Boolean(value)));
   }
 
-  private async handleSet(uuid: string, on: boolean): Promise<void> {
-    const entry = this.entries.get(uuid);
-    if (!entry) {
-      return;
-    }
+  private async handleSet(moodeName: string, on: boolean): Promise<void> {
     const { HapStatusError, HAPStatus } = this.api.hap;
     try {
       if (on) {
-        this.log.info(`Playing "${entry.moodeName}"`);
-        await this.client.play(entry.moodeName);
-        this.setOnly(uuid);
+        this.log.info(`Playing "${moodeName}"`);
+        await this.client.play(moodeName);
+        this.setOnly(moodeName);
       } else {
         // Turning the playing station off stops the music, unless moOde is
         // already playing a different known station.
         const now = await this.client.nowPlaying();
         const playing = this.known.find((st) => st.station === now.file);
-        if (now.state === 'play' && playing && playing.name !== entry.moodeName) {
+        if (now.state === 'play' && playing && playing.name !== moodeName) {
           return;
         }
-        this.log.info(`Stopping "${entry.moodeName}"`);
+        this.log.info(`Stopping "${moodeName}"`);
         await this.client.stop();
       }
     } catch (err) {
@@ -198,10 +191,10 @@ export class MoodeRadioPlatform implements DynamicPlatformPlugin {
   }
 
   /** Marks exactly one station switch on (or none). */
-  private setOnly(activeUuid: string | undefined): void {
+  private setOnly(active: string | undefined): void {
     const { Characteristic } = this.api.hap;
-    for (const [uuid, e] of this.entries) {
-      e.service.updateCharacteristic(Characteristic.On, uuid === activeUuid);
+    for (const [name, service] of this.switches) {
+      service.updateCharacteristic(Characteristic.On, name === active);
     }
   }
 
@@ -217,8 +210,7 @@ export class MoodeRadioPlatform implements DynamicPlatformPlugin {
       if (!match) {
         return; // playing something we can't identify: leave the switches as they are
       }
-      const active = [...this.entries].find(([, e]) => e.moodeName === match.name)?.[0];
-      this.setOnly(active);
+      this.setOnly(match.name);
     } catch (err) {
       this.log.debug(`Status check failed: ${(err as Error).message}`);
     }
