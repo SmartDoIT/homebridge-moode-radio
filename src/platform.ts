@@ -11,7 +11,6 @@ import { homeName } from './names';
 
 const PLUGIN_NAME = 'homebridge-moode-radio';
 const PLATFORM_NAME = 'MoodeRadio';
-const OFF_ID = '__radio_off__';
 const REFRESH_ID = '__radio_refresh__';
 
 interface StationConfig {
@@ -22,7 +21,7 @@ interface StationConfig {
 interface Entry {
   accessory: PlatformAccessory;
   service: Service;
-  /** moOde station name; undefined for the stop and refresh switches. */
+  /** moOde station name; undefined for the refresh switch. */
   moodeName?: string;
   label: string;
 }
@@ -52,9 +51,6 @@ export class MoodeRadioPlatform implements DynamicPlatformPlugin {
   }
 
   private async start(): Promise<void> {
-    if (this.config.offSwitch !== false) {
-      this.add(OFF_ID, homeName(String(this.config.offSwitchName ?? 'Radio Off')));
-    }
     if (this.config.refreshSwitch !== false) {
       this.add(REFRESH_ID, homeName(String(this.config.refreshSwitchName ?? 'Refresh Radio')));
     }
@@ -64,15 +60,12 @@ export class MoodeRadioPlatform implements DynamicPlatformPlugin {
 
     const pollSeconds = Math.max(5, Number(this.config.pollSeconds ?? 20));
     this.timers.push(setInterval(() => void this.sync(), pollSeconds * 1000));
-    const refreshMinutes = Number(this.config.refreshMinutes ?? 10);
-    if (refreshMinutes > 0) {
-      this.timers.push(setInterval(() => void this.reconcile(), refreshMinutes * 60_000));
-    }
   }
 
   /**
    * Rescans moOde's radio list and makes the station switches match it: one per favourite
-   * (plus any extra stations from the config). If moOde can't be reached, nothing is removed.
+   * (plus any extra stations from the config). Runs at startup and when the refresh switch
+   * is pressed. If moOde can't be reached, nothing is removed.
    */
   private async reconcile(): Promise<void> {
     let stations: Station[];
@@ -163,7 +156,7 @@ export class MoodeRadioPlatform implements DynamicPlatformPlugin {
       accessory = new this.api.platformAccessory(label, uuid);
       this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
     }
-    const model = moodeName ? 'moOde radio station' : id === OFF_ID ? 'moOde stop' : 'moOde refresh';
+    const model = moodeName ? 'moOde radio station' : 'moOde refresh';
     accessory
       .getService(hap.Service.AccessoryInformation)!
       .setCharacteristic(hap.Characteristic.Manufacturer, 'SmartDoIT')
@@ -190,16 +183,9 @@ export class MoodeRadioPlatform implements DynamicPlatformPlugin {
     }
     const { Characteristic, HapStatusError, HAPStatus } = this.api.hap;
     try {
-      if (this.isButton(uuid)) {
-        // Push buttons: do the action, then fall back to off.
-        if (!on) {
-          return;
-        }
-        if (uuid === this.uuidFor(OFF_ID)) {
-          this.log.info('Stopping playback');
-          await this.client.stop();
-          this.setOnly(undefined);
-        } else {
+      if (!entry.moodeName) {
+        // Refresh switch: acts like a push button, falls back to off.
+        if (on) {
           this.log.info('Refreshing the station list');
           await this.reconcile();
           setTimeout(() => entry.service.updateCharacteristic(Characteristic.On, false), 1000);
@@ -211,7 +197,13 @@ export class MoodeRadioPlatform implements DynamicPlatformPlugin {
         await this.client.play(entry.moodeName!);
         this.setOnly(uuid);
       } else {
-        // Turning the playing station off stops the music.
+        // Turning the playing station off stops the music, unless moOde is
+        // already playing a different known station.
+        const now = await this.client.nowPlaying();
+        const playing = this.known.find((st) => st.station === now.file);
+        if (now.state === 'play' && playing && playing.name !== entry.moodeName) {
+          return;
+        }
         this.log.info(`Stopping "${entry.moodeName}"`);
         await this.client.stop();
       }
@@ -221,11 +213,7 @@ export class MoodeRadioPlatform implements DynamicPlatformPlugin {
     }
   }
 
-  private isButton(uuid: string): boolean {
-    return uuid === this.uuidFor(OFF_ID) || uuid === this.uuidFor(REFRESH_ID);
-  }
-
-  /** Marks exactly one station switch on (or none) and the buttons off. */
+  /** Marks exactly one station switch on (or none). */
   private setOnly(activeUuid: string | undefined): void {
     const { Characteristic } = this.api.hap;
     for (const [uuid, e] of this.entries) {
