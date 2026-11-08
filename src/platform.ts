@@ -22,7 +22,7 @@ interface StationConfig {
 }
 
 /**
- * One HomeKit accessory ("moOde Radio") that holds one Switch service per radio station.
+ * One HomeKit accessory ("Radio moOde") that holds one Switch service per radio station.
  * Turning a switch on plays that station on moOde; turning it off stops the music.
  */
 export class MoodeRadioPlatform implements DynamicPlatformPlugin {
@@ -64,7 +64,7 @@ export class MoodeRadioPlatform implements DynamicPlatformPlugin {
       this.api.unregisterPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, this.legacy);
     }
 
-    const label = homeName(String(this.config.name ?? 'moOde Radio'));
+    const label = homeName(String(this.config.name ?? 'Radio moOde'));
     if (!this.accessory) {
       this.accessory = new this.api.platformAccessory(
         label,
