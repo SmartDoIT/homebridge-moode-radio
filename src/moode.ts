@@ -3,6 +3,8 @@ import * as net from 'node:net';
 export interface Station {
   name: string;
   station: string;
+  /** True for stations marked as favourites in moOde's radio list. */
+  favorite: boolean;
 }
 
 export interface NowPlaying {
@@ -24,8 +26,8 @@ export class MoodeClient {
     if (!res.ok) {
       throw new Error(`moOde returned HTTP ${res.status} for the station list`);
     }
-    const rows = (await res.json()) as Array<{ name: string; station: string }>;
-    return rows.map((r) => ({ name: r.name, station: r.station }));
+    const rows = (await res.json()) as Array<{ name: string; station: string; type?: string }>;
+    return rows.map((r) => ({ name: r.name, station: r.station, favorite: r.type === 'f' }));
   }
 
   /** moOde's own "clear and play" for a radio station: empties the queue, adds the station, plays. */

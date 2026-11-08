@@ -2,7 +2,7 @@
   "pluginAlias": "MoodeRadio",
   "pluginType": "platform",
   "singular": true,
-  "headerDisplay": "Each favourite station becomes a switch in the Home app. Turning one on plays it on moOde and turns the others off.",
+  "headerDisplay": "Every station you mark as a favourite in moOde's radio list becomes a switch in the Home app. Turning one on plays it on moOde and turns the others off.",
   "schema": {
     "type": "object",
     "properties": {
@@ -26,6 +26,30 @@
         "minimum": 1,
         "maximum": 65535
       },
+      "includeFavorites": {
+        "title": "Switches for moOde favourites",
+        "type": "boolean",
+        "default": true,
+        "description": "Create a switch for every station marked as a favourite in moOde. Add or remove favourites in moOde's radio list; the plugin picks the change up."
+      },
+      "refreshMinutes": {
+        "title": "Rescan moOde favourites every (minutes)",
+        "type": "integer",
+        "default": 10,
+        "minimum": 0,
+        "description": "0 turns the automatic rescan off."
+      },
+      "refreshSwitch": {
+        "title": "Add a 'refresh' switch",
+        "type": "boolean",
+        "default": true,
+        "description": "A button in Home that rescans moOde's favourites right away."
+      },
+      "refreshSwitchName": {
+        "title": "Refresh switch name",
+        "type": "string",
+        "default": "Refresh Radio"
+      },
       "pollSeconds": {
         "title": "Status check every (seconds)",
         "type": "integer",
@@ -44,7 +68,7 @@
         "default": "Radio Off"
       },
       "stations": {
-        "title": "Favourite stations",
+        "title": "Extra stations (optional)",
         "type": "array",
         "items": {
           "type": "object",
@@ -52,7 +76,7 @@
             "name": {
               "title": "Station name in moOde",
               "type": "string",
-              "required": true,
+              "required": false,
               "description": "Exactly as shown in moOde's radio list, e.g. Radio Swiss Jazz."
             },
             "label": {
@@ -61,9 +85,13 @@
               "description": "Optional. Leave empty to use the moOde name. Keep it short and easy to say."
             }
           }
-        }
+        },
+        "description": "Only needed for stations that are not favourites in moOde, or to give a favourite a shorter name for Siri."
       }
     },
-    "required": ["name", "host"]
+    "required": [
+      "name",
+      "host"
+    ]
   }
 }

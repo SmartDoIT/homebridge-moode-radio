@@ -4,10 +4,11 @@ Homebridge plugin that turns your favourite radio stations on a [moOde audio pla
 
 > "Hey Siri, turn on Swiss Jazz"
 
-- One switch per favourite station, listed in the plugin config.
+- **Follows moOde's favourites.** Every station marked as a favourite in moOde's radio list becomes a switch. Add or remove a favourite in moOde and the plugin picks it up, so there is no list to maintain in Homebridge.
 - Only one station is on at a time: turning one on turns the others off.
-- Optional **Radio Off** switch that stops playback.
+- **Radio Off** switch stops playback; **Refresh Radio** switch rescans moOde's favourites right away (otherwise the plugin rescans every 10 minutes).
 - Switches follow what moOde is really playing (checked every 20 seconds), so changes made in moOde itself show up in Home.
+- If moOde is switched off, the existing switches stay; nothing is removed because of a failed scan.
 - Nothing is installed on moOde and no login is needed: the plugin uses moOde's web command API (the same call as clicking a station in moOde's radio list, "clear and play") and MPD on port 6600.
 
 ## Install
@@ -22,30 +23,28 @@ sudo npm install -g github:SmartDoIT/homebridge-moode-radio
 
 ## Config
 
+The minimum:
+
 ```json
-{
-  "platform": "MoodeRadio",
-  "name": "moOde Radio",
-  "host": "moode.local",
-  "stations": [
-    { "name": "Radio Swiss Jazz", "label": "Swiss Jazz" },
-    { "name": "Naxi Ex-YU Rock" },
-    { "name": "Dasko i Mladja", "label": "Dasko i Mladja" }
-  ]
-}
+{ "platform": "MoodeRadio", "name": "moOde Radio", "host": "moode.local" }
 ```
 
 | Option | Default | Meaning |
 |---|---|---|
 | `host` | `moode.local` | moOde's host name or IP address |
 | `mpdPort` | `6600` | MPD port |
-| `pollSeconds` | `20` | how often switches are synced with moOde (minimum 5) |
-| `offSwitch` | `true` | add a stop switch |
+| `includeFavorites` | `true` | a switch for every favourite in moOde's radio list |
+| `refreshMinutes` | `10` | how often moOde's favourites are rescanned (0 = never) |
+| `refreshSwitch` | `true` | add the Refresh Radio switch |
+| `refreshSwitchName` | `Refresh Radio` | its name in Home |
+| `offSwitch` | `true` | add the stop switch |
 | `offSwitchName` | `Radio Off` | its name in Home |
-| `stations[].name` | | station name exactly as in moOde's radio list |
-| `stations[].label` | same as `name` | name in Home and for Siri; keep it short |
+| `pollSeconds` | `20` | how often switches are synced with moOde (minimum 5) |
+| `stations` | none | extra stations that are not favourites in moOde, or a shorter name for Siri |
 
-Playing a station empties moOde's play queue and puts only that station in it.
+`stations` entries look like `{ "name": "Radio Swiss Jazz", "label": "Swiss Jazz" }`: `name` is exactly as in moOde's radio list, `label` is the name in Home.
+
+Names in Home are cleaned for HomeKit (`FluxFM - 80s` becomes `FluxFM 80s`). Playing a station empties moOde's play queue and puts only that station in it. HomeKit allows about 150 accessories per bridge; with more favourites than that, run the plugin as a child bridge.
 
 ## Develop
 
