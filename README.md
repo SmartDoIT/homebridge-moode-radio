@@ -14,13 +14,13 @@ Homebridge plugin that turns your favourite radio stations on a [moOde audio pla
 
 ## Install
 
-Not on npm yet. On the Homebridge machine:
+In Homebridge UI, search for **moOde Radio** under Plugins and install it, or on the Homebridge machine:
 
 ```
-sudo npm install -g github:SmartDoIT/homebridge-moode-radio
+sudo npm install -g homebridge-moode-radio
 ```
 
-(The repository is private for now; the machine needs read access to it.) Restart Homebridge, then add the platform in the config or through the plugin settings in Homebridge UI.
+Restart Homebridge, then add the platform in the config or through the plugin settings in Homebridge UI.
 
 ## Config
 
@@ -51,3 +51,15 @@ npm test
 ```
 
 Needs Node 20, 22 or 24.
+
+## Releasing
+
+1. Update `CHANGELOG.md` and bump the version: `npm version patch` (or `minor` / `major`). This commits and creates a tag `vX.Y.Z`.
+2. Push: `git push && git push --tags`.
+3. On GitHub, create a release from that tag. Publishing the release starts the **Publish to npm** workflow, which builds, tests and publishes the package to npm. The workflow refuses to publish if the tag and `package.json` version differ.
+
+The workflow uses npm trusted publishing, so no npm token is stored in the repository. Setup (once, on npmjs.com): the package's Settings, Trusted Publisher, GitHub Actions, organisation `SmartDoIT`, repository `homebridge-moode-radio`, workflow `release.yml`. The very first version has to be published by hand, because the setting only exists once the package does.
+
+## License
+
+MIT
