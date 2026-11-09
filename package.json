@@ -1,7 +1,7 @@
 {
   "name": "homebridge-moode-radio",
   "displayName": "moOde Radio",
-  "version": "0.4.3",
+  "version": "1.0.0",
   "description": "Siri and HomeKit switches that play favourite radio stations on a moOde audio player",
   "license": "MIT",
   "author": "SmartDoIT",
