@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.0
+- First stable release, and the first one published to npm automatically from a GitHub release.
+- Includes everything from 0.4.x: one accessory "moOde Radio" with one switch per moOde favourite.
+
 ## 0.4.3
 - Default accessory name is "moOde Radio".
 
