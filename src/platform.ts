@@ -13,6 +13,7 @@ const PLUGIN_NAME = 'homebridge-moode-radio';
 const PLATFORM_NAME = 'MoodeRadio';
 const ACCESSORY_ID = 'moode-radio-accessory';
 const SUBTYPE_PREFIX = 'station:';
+const STOP_SUBTYPE = 'stop-all';
 /** HomeKit allows 100 services per accessory; two are taken by the accessory itself. */
 const MAX_STATIONS = 90;
 
@@ -102,6 +103,7 @@ export class MoodeRadioPlatform implements DynamicPlatformPlugin {
           this.bind(service, service.subtype.slice(SUBTYPE_PREFIX.length));
         }
       }
+      this.reconcileStopButton();
       return;
     }
     this.known = stations;
@@ -154,8 +156,48 @@ export class MoodeRadioPlatform implements DynamicPlatformPlugin {
       service.setCharacteristic(hap.Characteristic.ConfiguredName, label);
       this.bind(service, name);
     }
+    this.reconcileStopButton();
     this.api.updatePlatformAccessories([accessory]);
     this.log.info(`moOde radio: ${wanted.size} station switches (${added} added, ${removed} removed)`);
+  }
+
+  /** Adds (or removes) the "Stop radio" button: a switch that stops moOde whatever is playing. */
+  private reconcileStopButton(): void {
+    const { hap } = this.api;
+    const accessory = this.accessory!;
+    let service = accessory.getServiceById(hap.Service.Switch, STOP_SUBTYPE);
+    if (this.config.stopButton === false) {
+      if (service) {
+        accessory.removeService(service);
+      }
+      return;
+    }
+    const label = homeName(String(this.config.stopButtonName ?? 'Stop radio'));
+    if (!service) {
+      service = accessory.addService(hap.Service.Switch, label, STOP_SUBTYPE);
+    }
+    service.setCharacteristic(hap.Characteristic.Name, label);
+    service.addOptionalCharacteristic(hap.Characteristic.ConfiguredName);
+    service.setCharacteristic(hap.Characteristic.ConfiguredName, label);
+    const on = service.getCharacteristic(hap.Characteristic.On);
+    const button = service;
+    on.onGet(() => false).onSet(async (value) => {
+      if (!value) {
+        return;
+      }
+      try {
+        this.log.info('Stopping moOde (stop button)');
+        await this.client.stop();
+        this.setOnly(undefined);
+      } catch (err) {
+        this.log.error(`moOde request failed: ${(err as Error).message}`);
+        throw new hap.HapStatusError(hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE);
+      } finally {
+        // Behave like a button: spring back to off.
+        setTimeout(() => button.updateCharacteristic(hap.Characteristic.On, false), 1000);
+      }
+    });
+    on.updateValue(false);
   }
 
   private bind(service: Service, moodeName: string): void {
