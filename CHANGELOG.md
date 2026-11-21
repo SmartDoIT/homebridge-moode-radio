@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.1.0
+- New "Stop radio" button: a switch that stops moOde whichever station is playing, then springs back to off. On by default; turn it off or rename it in the plugin settings.
+
 ## 1.0.0
 - First stable release, and the first one published to npm automatically from a GitHub release.
 - Includes everything from 0.4.x: one accessory "moOde Radio" with one switch per moOde favourite.

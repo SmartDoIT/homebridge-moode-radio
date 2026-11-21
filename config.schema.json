@@ -33,6 +33,18 @@
         "default": true,
         "description": "Create a switch for every station marked as a favourite in moOde. The list is read each time Homebridge starts; restart Homebridge (or the plugin's child bridge) after changing favourites in moOde."
       },
+      "stopButton": {
+        "title": "Stop button",
+        "type": "boolean",
+        "default": true,
+        "description": "Add a \"Stop radio\" switch that stops moOde whichever station is playing. It springs back to off by itself, like a button."
+      },
+      "stopButtonName": {
+        "title": "Stop button name",
+        "type": "string",
+        "default": "Stop radio",
+        "description": "Name of the stop button in the Home app and for Siri."
+      },
       "pollSeconds": {
         "title": "Status check every (seconds)",
         "type": "integer",
