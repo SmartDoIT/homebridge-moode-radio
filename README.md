@@ -6,7 +6,7 @@ Homebridge plugin that turns your favourite radio stations on a [moOde audio pla
 
 - **Follows moOde's favourites.** Every station marked as a favourite in moOde's radio list becomes a switch inside the one accessory. Add or remove a favourite in moOde and the plugin picks it up, so there is no list to maintain in Homebridge.
 - Only one station is on at a time: turning one on turns the others off.
-- Turning the playing station's switch off stops the music. A "Stop radio" button (switch that springs back to off) also stops moOde whichever station is playing; disable it with `stopButton: false`, rename it with `stopButtonName`.
+- Turning the playing station's switch off stops the music. A "Stop radio" button (on while the radio is stopped) also stops moOde whichever station is playing; disable it with `stopButton: false`, rename it with `stopButtonName`.
 - The favourites list is read from moOde each time Homebridge starts (restart Homebridge, or the plugin's child bridge, after changing favourites in moOde). There is no timer and no refresh switch.
 - Switches follow what moOde is really playing (checked every 20 seconds), so changes made in moOde itself show up in Home.
 - If moOde is switched off, the existing switches stay; nothing is removed because of a failed scan.
