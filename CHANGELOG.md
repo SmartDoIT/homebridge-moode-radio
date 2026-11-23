@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.1.1
+- The "Stop radio" switch now stays on while the radio is stopped and turns off when any station plays, instead of springing back to off. Pressing it stops whatever is playing.
+
 ## 1.1.0
 - New "Stop radio" button: a switch that stops moOde whichever station is playing, then springs back to off. On by default; turn it off or rename it in the plugin settings.
 

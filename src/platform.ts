@@ -33,6 +33,8 @@ export class MoodeRadioPlatform implements DynamicPlatformPlugin {
   private readonly legacy: PlatformAccessory[] = [];
   /** moOde station name -> its switch. */
   private readonly switches = new Map<string, Service>();
+  /** The "Stop radio" switch: on while the radio is stopped, off while a station plays. */
+  private stopSwitch?: Service;
   private known: Station[] = [];
   private timer?: NodeJS.Timeout;
 
@@ -167,6 +169,7 @@ export class MoodeRadioPlatform implements DynamicPlatformPlugin {
     const accessory = this.accessory!;
     let service = accessory.getServiceById(hap.Service.Switch, STOP_SUBTYPE);
     if (this.config.stopButton === false) {
+      this.stopSwitch = undefined;
       if (service) {
         accessory.removeService(service);
       }
@@ -179,10 +182,13 @@ export class MoodeRadioPlatform implements DynamicPlatformPlugin {
     service.setCharacteristic(hap.Characteristic.Name, label);
     service.addOptionalCharacteristic(hap.Characteristic.ConfiguredName);
     service.setCharacteristic(hap.Characteristic.ConfiguredName, label);
+    this.stopSwitch = service;
     const on = service.getCharacteristic(hap.Characteristic.On);
-    const button = service;
-    on.onGet(() => false).onSet(async (value) => {
+    on.onGet(() => service!.getCharacteristic(hap.Characteristic.On).value ?? false).onSet(async (value) => {
       if (!value) {
+        // Off isn't a state you can choose: the button is on whenever the radio is stopped.
+        // Re-check shortly so it snaps back if nothing is playing.
+        setTimeout(() => void this.sync(), 500);
         return;
       }
       try {
@@ -192,12 +198,8 @@ export class MoodeRadioPlatform implements DynamicPlatformPlugin {
       } catch (err) {
         this.log.error(`moOde request failed: ${(err as Error).message}`);
         throw new hap.HapStatusError(hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE);
-      } finally {
-        // Behave like a button: spring back to off.
-        setTimeout(() => button.updateCharacteristic(hap.Characteristic.On, false), 1000);
       }
     });
-    on.updateValue(false);
   }
 
   private bind(service: Service, moodeName: string): void {
@@ -233,9 +235,10 @@ export class MoodeRadioPlatform implements DynamicPlatformPlugin {
     }
   }
 
-  /** Marks exactly one station switch on (or none). */
+  /** Marks exactly one station switch on, or none, in which case the stop switch is on. */
   private setOnly(active: string | undefined): void {
     const { Characteristic } = this.api.hap;
+    this.stopSwitch?.updateCharacteristic(Characteristic.On, active === undefined);
     for (const [name, service] of this.switches) {
       service.updateCharacteristic(Characteristic.On, name === active);
     }
@@ -251,7 +254,9 @@ export class MoodeRadioPlatform implements DynamicPlatformPlugin {
       }
       const match = this.known.find((s) => s.station === now.file);
       if (!match) {
-        return; // playing something we can't identify: leave the switches as they are
+        // Playing something we can't identify: the radio isn't stopped.
+        this.stopSwitch?.updateCharacteristic(this.api.hap.Characteristic.On, false);
+        return;
       }
       this.setOnly(match.name);
     } catch (err) {

@@ -37,7 +37,7 @@
         "title": "Stop button",
         "type": "boolean",
         "default": true,
-        "description": "Add a \"Stop radio\" switch that stops moOde whichever station is playing. It springs back to off by itself, like a button."
+        "description": "Add a \"Stop radio\" switch that stops moOde whichever station is playing. It is on while the radio is stopped."
       },
       "stopButtonName": {
         "title": "Stop button name",
